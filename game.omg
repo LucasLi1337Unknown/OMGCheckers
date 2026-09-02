@@ -1,0 +1,17 @@
+OMG
+OH boardSize Umm 8
+OH startingRows Umm 3
+Ohh firstPlayer Umm "red"
+Ohh secondPlayer Umm "white"
+OH redDirection Umm -1
+OH whiteDirection Umm 1
+OH captureRequired Umm 1
+OH multiJump Umm 1
+OH kingsMoveBothWays Umm 1
+OH aiCaptureScore Umm 100
+OH aiKingScore Umm 45
+OH aiCenterScore Umm 8
+OH aiAdvanceScore Umm 3
+OH aiThinkTime Umm 350
+Woah "WOAH! CHECKERS LOADED!"
+BYE

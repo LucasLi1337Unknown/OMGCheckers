@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMG Checkers</title>
+<style>
+:root{--ink:#171512;--cream:#fff9ed;--red:#ef3f4f;--yellow:#ffc83d;--blue:#2764ff;--dark:#26211d;--light:#f3ddaf}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--yellow);color:var(--ink);font-family:Arial Black,Arial,sans-serif;display:grid;place-items:center;padding:24px}
+.app{width:min(1100px,100%);display:grid;grid-template-columns:minmax(320px,680px) 300px;gap:24px;align-items:start}
+.boardWrap{background:var(--ink);padding:12px;border:4px solid var(--ink);box-shadow:12px 12px 0 var(--red)}
+#board{width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);touch-action:manipulation}
+.square{position:relative;display:grid;place-items:center;border:0;padding:0;background:var(--light);cursor:default}
+.square.dark{background:var(--dark);cursor:pointer}.square.target:after{content:"";width:25%;height:25%;border-radius:50%;background:var(--yellow);box-shadow:0 0 0 4px #17151266}.square.selected{outline:6px solid var(--blue);outline-offset:-6px;z-index:1}
+.piece{width:72%;height:72%;border-radius:50%;border:4px solid var(--ink);box-shadow:inset 0 0 0 5px #ffffff45,0 5px 0 #0e0c0a;display:grid;place-items:center}.piece.red{background:var(--red)}.piece.white{background:var(--cream)}.piece.king:after{content:"K";font-size:clamp(18px,4vw,36px);color:var(--yellow);-webkit-text-stroke:2px var(--ink)}
+.panel{background:var(--cream);border:4px solid var(--ink);padding:22px;box-shadow:8px 8px 0 var(--blue)}
+h1{font-size:38px;line-height:.9;margin:0 0 18px}.badge{display:inline-block;background:var(--red);color:white;padding:5px 9px;transform:rotate(-2deg);font-size:14px;margin-bottom:14px}.status{font-family:Arial,sans-serif;font-weight:800;font-size:20px;min-height:52px;margin:14px 0}.counts{display:flex;gap:8px;margin:12px 0}.count{flex:1;border:3px solid var(--ink);padding:10px;text-align:center;font-family:Arial,sans-serif;font-weight:800}.controls{display:grid;gap:9px}button.action{font:inherit;font-size:15px;padding:11px;border:3px solid var(--ink);background:var(--yellow);box-shadow:4px 4px 0 var(--ink);cursor:pointer}button.action:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}details{margin-top:18px;font-family:monospace;font-size:12px}pre{white-space:pre-wrap;background:var(--ink);color:#b8ff9c;padding:12px;max-height:230px;overflow:auto}
+@media(max-width:820px){.app{grid-template-columns:1fr}.panel{order:-1}h1{font-size:32px}.boardWrap{box-shadow:7px 7px 0 var(--red)}}
+</style>
+</head>
+<body>
+<main class="app">
+<section class="boardWrap"><div id="board" aria-label="Checkers board"></div></section>
+<aside class="panel">
+<div class="badge">POWERED BY OMG</div>
+<h1>WOAH.<br>CHECKERS!</h1>
+<div id="status" class="status"></div>
+<div class="counts"><div class="count">RED<br><span id="redCount">12</span></div><div class="count">WHITE<br><span id="whiteCount">12</span></div></div>
+<div class="controls"><button class="action" id="undo">OOPS! UNDO</button><button class="action" id="restart">OMG! RESTART</button></div>
+<details><summary>SEE THE OMG SOURCE</summary><pre id="sourceView"></pre></details>
+</aside>
+</main>
+<script id="omgSource" type="text/omg">OMG
+OH boardSize Umm 8
+OH startingRows Umm 3
+Ohh firstPlayer Umm "red"
+Ohh secondPlayer Umm "white"
+OH redDirection Umm 1
+OH whiteDirection Umm -1
+OH captureRequired Umm 1
+OH multiJump Umm 1
+OH kingsMoveBothWays Umm 1
+Woah "WOAH! CHECKERS LOADED!"
+BYE</script>
+<script>
+const source=document.getElementById('omgSource').textContent.trim();
+document.getElementById('sourceView').textContent=source;
+function runOMG(code){
+ const lines=code.split(/\n/).map(x=>x.trim()).filter(Boolean);
+ if(lines[0]!=='OMG'||lines.at(-1)!=='BYE')throw Error('BRO WHERE IS OMG OR BYE?');
+ const memory={};
+ for(const line of lines.slice(1,-1)){
+  const match=line.match(/^(OH|Ooh|Ohh|OOH|OHH)\s+(\w+)\s+Umm\s+(.+)$/);
+  if(match){let value=match[3];if(match[1]==='Ohh')value=value.replace(/^"|"$/g,'');else value=Number(value);memory[match[2]]=value;}
+  else if(line.startsWith('Woah '))console.log(line.slice(5).replace(/^"|"$/g,''));
+ }
+ return memory;
+}
+const rules=runOMG(source),N=rules.boardSize;
+let board,turn,selected,moves,forced,history,winner;
+const boardEl=document.getElementById('board'),statusEl=document.getElementById('status');
+const copy=b=>b.map(row=>row.map(p=>p?{...p}:null));
+function reset(){
+ board=Array.from({length:N},()=>Array(N).fill(null));
+ for(let r=0;r<rules.startingRows;r++)for(let c=0;c<N;c++)if((r+c)%2)board[r][c]={color:'red',king:false};
+ for(let r=N-rules.startingRows;r<N;r++)for(let c=0;c<N;c++)if((r+c)%2)board[r][c]={color:'white',king:false};
+ turn=rules.firstPlayer;selected=null;moves=[];forced=null;history=[];winner=null;render();
+}
+function dirs(piece){return piece.king&&rules.kingsMoveBothWays?[-1,1]:[piece.color==='red'?rules.redDirection:rules.whiteDirection];}
+function inside(r,c){return r>=0&&r<N&&c>=0&&c<N}
+function pieceMoves(r,c,capturesOnly=false){
+ const p=board[r][c],out=[];if(!p||p.color!==turn)return out;
+ for(const dr of dirs(p))for(const dc of[-1,1]){
+  const r1=r+dr,c1=c+dc,r2=r+dr*2,c2=c+dc*2;
+  if(!capturesOnly&&inside(r1,c1)&&!board[r1][c1])out.push({r:r1,c:c1,cap:null});
+  if(inside(r2,c2)&&!board[r2][c2]&&board[r1]?.[c1]&&board[r1][c1].color!==p.color)out.push({r:r2,c:c2,cap:{r:r1,c:c1}});
+ }
+ return capturesOnly?out.filter(m=>m.cap):out;
+}
+function allCaptures(){const out=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)for(const m of pieceMoves(r,c,true))out.push({from:{r,c},...m});return out;}
+function legalFor(r,c){if(forced&&(forced.r!==r||forced.c!==c))return[];const caps=allCaptures();return pieceMoves(r,c,caps.length&&rules.captureRequired).filter(m=>!caps.length||m.cap);}
+function clickSquare(r,c){
+ if(winner)return;const target=moves.find(m=>m.r===r&&m.c===c);
+ if(selected&&target){play(selected.r,selected.c,target);return;}
+ if(board[r][c]?.color===turn){const next=legalFor(r,c);if(next.length){selected={r,c};moves=next;render();}}
+}
+function play(fr,fc,m){
+ history.push({board:copy(board),turn,forced,selected,winner});const p=board[fr][fc];board[m.r][m.c]=p;board[fr][fc]=null;if(m.cap)board[m.cap.r][m.cap.c]=null;
+ if((p.color==='red'&&m.r===N-1)||(p.color==='white'&&m.r===0))p.king=true;
+ if(m.cap&&rules.multiJump){const more=pieceMoves(m.r,m.c,true);if(more.length){forced={r:m.r,c:m.c};selected={...forced};moves=more;render();return;}}
+ forced=null;selected=null;moves=[];turn=turn==='red'?'white':'red';checkWinner();render();
+}
+function checkWinner(){let hasPiece=false,hasMove=false;for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(board[r][c]?.color===turn){hasPiece=true;if(legalFor(r,c).length)hasMove=true;}if(!hasPiece||!hasMove)winner=turn==='red'?'white':'red';}
+function render(){
+ boardEl.innerHTML='';for(let r=0;r<N;r++)for(let c=0;c<N;c++){const sq=document.createElement('button');sq.className='square '+((r+c)%2?'dark':'');sq.setAttribute('aria-label',`row ${r+1}, column ${c+1}`);if(selected?.r===r&&selected?.c===c)sq.classList.add('selected');if(moves.some(m=>m.r===r&&m.c===c))sq.classList.add('target');const p=board[r][c];if(p){const el=document.createElement('div');el.className=`piece ${p.color}${p.king?' king':''}`;sq.appendChild(el);}sq.onclick=()=>clickSquare(r,c);boardEl.appendChild(sq);}
+ const rc=board.flat().filter(p=>p?.color==='red').length,wc=board.flat().filter(p=>p?.color==='white').length;document.getElementById('redCount').textContent=rc;document.getElementById('whiteCount').textContent=wc;
+ statusEl.textContent=winner?`WOAH! ${winner.toUpperCase()} WINS!`:forced?`${turn.toUpperCase()} MUST KEEP JUMPING!`:`${turn.toUpperCase()}'S TURN${allCaptures().length?' — CAPTURE!':''}`;
+}
+document.getElementById('restart').onclick=reset;
+document.getElementById('undo').onclick=()=>{const h=history.pop();if(!h)return;board=h.board;turn=h.turn;forced=h.forced;selected=h.selected;moves=[];winner=h.winner;render();};
+reset();
+</script>
+</body>
+</html>
